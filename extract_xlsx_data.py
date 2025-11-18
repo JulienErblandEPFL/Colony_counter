@@ -47,7 +47,7 @@ for file in glob.glob(ROOT_FOLDER + "**/*.xlsx", recursive=True):
                 else:
                     value = raw_value
 
-                name = f"{filename}_Plate{plate_index}_{label}{logical_idx}"
+                name = f"{filename}_plate{plate_index}_{label}{logical_idx}"
 
                 rows.append({
                     "Name": name,
