@@ -4,9 +4,15 @@ import os
 
 def crop_wells(file_path, plate_type, debug=False, save_files=True):
     # Extract plate name and number from file path
-    base_name = os.path.splitext(os.path.basename(file_path))[0]  # e.g. Plate_1
-    plate_number = ''.join(filter(str.isdigit, base_name))        # "1", "7", etc.
-    plate_name = base_name.lower()                                # "plate_1"
+    base_name = os.path.splitext(os.path.basename(file_path))[0]
+    # Extract plate number ONLY from the "Plate_X" part
+    name_lower = base_name.lower()
+    if "plate_" in name_lower:
+        plate_number = name_lower.split("plate_")[1]
+    else:
+        raise ValueError(f"Filename must contain 'Plate_X': {base_name}")
+
+    plate_name = f"plate_{plate_number}"
 
     # Debug file path
     debug_path = f"{plate_name}_detected_debug.jpg"
@@ -18,9 +24,9 @@ def crop_wells(file_path, plate_type, debug=False, save_files=True):
     output_dir = os.path.join(type_dir, plate_name)
 
     # Ensure directories exist
-    os.makedirs(base_dir, exist_ok=True)
-    os.makedirs(type_dir, exist_ok=True)
     if save_files:
+        os.makedirs(base_dir, exist_ok=True)
+        os.makedirs(type_dir, exist_ok=True)
         os.makedirs(output_dir, exist_ok=True)
 
     # Load and preprocess the image
@@ -54,24 +60,7 @@ def crop_wells(file_path, plate_type, debug=False, save_files=True):
 
     # If not found, use closest result
     if best_circles is None:
-        print("Did not find exactly 12 circles. Using the closest result.")
-        best_diff = float("inf")
-        best_p = None
-
-        for p in range(40, 100, 5):
-            params["param2"] = p
-            circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, **params)
-            if circles is not None:
-                diff = abs(len(circles[0]) - 12)
-                if diff < best_diff:
-                    best_diff = diff
-                    best_circles = np.around(circles[0, :]).astype(int)
-                    best_p = p
-
-        if best_circles is not None:
-            print(f"Using {len(best_circles)} circles (param2={best_p})")
-        else:
-            raise RuntimeError("No circles detected.")
+        raise RuntimeError("Did not find exactly 12 circles in the image.")
 
     # Group circles into rows using Y coordinate
     best_circles = sorted(best_circles, key=lambda c: c[1])
@@ -80,7 +69,7 @@ def crop_wells(file_path, plate_type, debug=False, save_files=True):
 
     rows = []
     current_row = [best_circles[0]]
-
+    cropped_images = {}
     for c in best_circles[1:]:
         if abs(c[1] - np.mean([cc[1] for cc in current_row])) < row_threshold:
             current_row.append(c)
@@ -112,16 +101,24 @@ def crop_wells(file_path, plate_type, debug=False, save_files=True):
         print(f"Saved debug image as {debug_path}")
 
     # Save cropped wells if enabled
-    if save_files:
-        for label, (x, y, r) in labels:
-            x1, y1 = max(0, x - r), max(0, y - r)
-            x2, y2 = min(img.shape[1], x + r), min(img.shape[0], y + r)
-            crop = img[y1:y2, x1:x2]
+    cropped_images = {}   # store A1 → image array, etc.
 
+    for label, (x, y, r) in labels:
+        x1, y1 = max(0, x - r), max(0, y - r)
+        x2, y2 = min(img.shape[1], x + r), min(img.shape[0], y + r)
+        crop = img[y1:y2, x1:x2]
+
+        # store in dictionary
+        cropped_images[label] = crop
+
+        # Save to disk if needed
+        if save_files:
             file_label = f"{plate_type}_plate{plate_number}_{label}.jpg"
             save_path = os.path.join(output_dir, file_label)
             cv2.imwrite(save_path, crop)
 
+    if save_files:
         print(f"All cropped wells saved in {output_dir}/")
 
-    return labels
+    return cropped_images
+
