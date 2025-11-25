@@ -14,7 +14,7 @@ RING_THRESH    = 0.38                          # NCC threshold
 MIN_RING_COUNT = 6
 
 # Color (HSV) thresholds for purple/magenta wells
-SAT_MIN = 80
+SAT_MIN = 50
 VAL_MIN = 40
 HUE_RANGES = [(120, 170), (0, 10)]
 
@@ -27,7 +27,7 @@ HOUGH_PARAM1   = 120
 HOUGH_PARAM2   = 25
 
 # BBox rules
-PAD_FRAC = 0.035
+PAD_FRAC = 0.055
 ASPECT_MIN, ASPECT_MAX = 0.9, 1.9           # 12-well plate is ~1.3
 MAX_AREA_FRAC = 0.85
 
@@ -35,7 +35,7 @@ MAX_AREA_FRAC = 0.85
 MIN_WELLS_FOR_CONFIDENT = 10  # if fewer detected, use fallback
 # Default normalized fallback rect (x_frac, y_frac, w_frac, h_frac) – tweak if needed
 FALLBACK_RECT_DEFAULT = (0.14, 0.56, 0.66, 0.36)  # bottom-left area where your plate typically sits
-FALLBACK_PAD_FRAC = 0.08   # 8% of min(image side); adjust to taste
+FALLBACK_PAD_FRAC = 0.03
 # -----------------------------------------------------------
 
 def ensure_dir(p: Path):
@@ -260,13 +260,18 @@ def crop_with_fallback(img, calibrated_rect_norm=None):
     else:
         fx, fy, fw, fh = calibrated_rect_norm
 
-    x = clip(int(fx * W), 0, W-1)
-    y = clip(int(fy * H), 0, H-1)
-    w = clip(int(fw * W), 1, W-x)
-    h = clip(int(fh * H), 1, H-y)
-    # add extra margin only for the fallback path
+    # convert to pixels
+    x = fx * W
+    y = fy * H
+    w = fw * W
+    h = fh * H
+
+    # *** make fallback rectangle bigger ***
+    pad = int(FALLBACK_PAD_FRAC * min(W, H))  # e.g. 0.1 → 10% of min side
+    x, y, w, h = expand_box(x, y, w, h, pad, W, H)
 
     return img[y:y+h, x:x+w], calibrated_rect_norm, False
+
 
 def process_folder(src_root: Path, dst_root: Path):
     files = [p for p in src_root.rglob("*") if p.suffix.lower() in IMAGE_EXTS]
@@ -303,6 +308,3 @@ def process_folder(src_root: Path, dst_root: Path):
 def main():
     ensure_dir(DST_ROOT)
     process_folder(SRC_ROOT, DST_ROOT)
-
-if __name__ == "__main__":
-    main()
