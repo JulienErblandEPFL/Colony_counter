@@ -13,15 +13,21 @@ class ColonyDataset(Dataset):
     def __init__(self, csv_path=None, df=None, transform=None):
         # Load from DataFrame
         if df is not None:
-            self.df = df.reset_index(drop=True)
-        # Load from CSV
+            self.df = df.copy()
+        # Load from CSV path
         elif csv_path is not None:
             self.df = pd.read_csv(csv_path)
         else:
             raise ValueError("You must provide either csv_path or df.")
 
-        # Only keep labeled samples
+        # Remove unreadable wells (-1)
+        self.df = self.df[self.df["value"] >= 0]
+
+        # Remove missing labels
         self.df = self.df.dropna(subset=["value"])
+
+        # Reset index for safety
+        self.df = self.df.reset_index(drop=True)
 
         self.transform = transform
 

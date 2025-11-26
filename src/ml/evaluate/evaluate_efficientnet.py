@@ -20,6 +20,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 def evaluate_model(csv_path, model_path, batch_size=16):
     # Load data
     df = pd.read_csv(csv_path).dropna(subset=["value"])
+    df = df[df["value"] >= 0].reset_index(drop=True)
     test_ds = ColonyDataset(df=df, transform=get_test_transforms())
     test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
 
@@ -63,35 +64,22 @@ def evaluate_model(csv_path, model_path, batch_size=16):
 
 if __name__ == "__main__":
     import random
-    df = pd.read_csv("data/dataset.csv").dropna(subset=["value"])
+    df = pd.read_csv("data/dataset.csv")
+    df = df[df["value"] >= 0].reset_index(drop=True)
+
     preds, labels = evaluate_model("data/dataset.csv", "efficientnet_b0_colony.pth")
 
-    print("\n--- Random Sample Predictions (10 wells) ---")
-
-    # pick 10 random indices
+    print("\n--- Random Sample Predictions (Valid Wells Only) ---")
     indices = random.sample(range(len(df)), 10)
 
     for idx in indices:
         row = df.iloc[idx]
-        img_path = row["path"]
-        true_val = row["value"]
-        pred_val = preds[idx].item()
-
-        # extract filename
-        filename = os.path.basename(img_path)
-
-        # extract plate name from filename
-        # Example: Panama_plate3_B1 → plate3
-        plate_name = None
-        parts = filename.split("_")
-        for p in parts:
-            if "plate" in p.lower():
-                plate_name = p
-                break
-
+        filename = os.path.basename(row["path"])
+        plate_name = next((p for p in filename.split("_") if "plate" in p.lower()), "unknown")
+        
         print(
-            f"Plate: {plate_name:12s} | "
+            f"Plate: {plate_name:10s} | "
             f"File: {filename:30s} | "
-            f"Pred: {pred_val:6.2f} | "
-            f"True: {true_val:6.2f}"
+            f"Pred: {preds[idx].item():6.2f} | "
+            f"True: {labels[idx].item():6.2f}"
         )
