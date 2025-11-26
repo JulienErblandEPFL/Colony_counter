@@ -1,0 +1,15 @@
+name: colony
+channels:
+  - pytorch
+  - defaults
+dependencies:
+  - python=3.10
+  - numpy=1.26
+  - scipy
+  - scikit-learn
+  - pandas
+  - pillow
+  - pip
+  - pip:
+      - torch
+      - torchvision
