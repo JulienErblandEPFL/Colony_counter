@@ -1,16 +1,21 @@
 from pathlib import Path
 import cv2
 import numpy as np
+import os
+import sys
 
 # -------------------- Global parameters --------------------
-SRC_ROOT = Path("data")
-DST_ROOT = Path("cropped_data")
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+sys.path.insert(0, ROOT)
+
+SRC_ROOT = Path(os.path.join(ROOT, "data", "raw"))
+DST_ROOT = Path(os.path.join(ROOT, "data", "cropped_data"))
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"}
 
 # Ring-template matching
-RING_SCALES    = [0.035, 0.045, 0.055, 0.065]  # radius as fraction of min(H,W)
-RING_THICK_FR  = 0.18                          # ring thickness as fraction of radius
-RING_THRESH    = 0.38                          # NCC threshold
+RING_SCALES    = [0.035, 0.045, 0.055, 0.065]
+RING_THICK_FR  = 0.18
+RING_THRESH    = 0.38
 MIN_RING_COUNT = 6
 
 # Color (HSV) thresholds for purple/magenta wells
@@ -26,16 +31,19 @@ HOUGH_MIN_DIST = 0.08
 HOUGH_PARAM1   = 120
 HOUGH_PARAM2   = 25
 
-# BBox rules
-PAD_FRAC = 0.055
-ASPECT_MIN, ASPECT_MAX = 0.9, 1.9           # 12-well plate is ~1.3
+# --- BBox / Padding Rules (ADJUSTED FOR LOOSER CROP) ---
+# PAD_FRAC is the extra empty space added relative to image size
+PAD_FRAC = 0.01  
+# ASPECT ratios for a 12-well plate
+ASPECT_MIN, ASPECT_MAX = 0.9, 1.9
 MAX_AREA_FRAC = 0.85
 
-# ---- NEW: acceptance + fallback ----
-MIN_WELLS_FOR_CONFIDENT = 10  # if fewer detected, use fallback
-# Default normalized fallback rect (x_frac, y_frac, w_frac, h_frac) – tweak if needed
-FALLBACK_RECT_DEFAULT = (0.14, 0.56, 0.66, 0.36)  # bottom-left area where your plate typically sits
-FALLBACK_PAD_FRAC = 0.03
+# --- NEW: acceptance + fallback ---
+MIN_WELLS_FOR_CONFIDENT = 10
+# Fallback rect (x_frac, y_frac, w_frac, h_frac) (if there is an error on the first crop)
+FALLBACK_RECT_DEFAULT = (0.14, 0.56, 0.66, 0.36)
+# Increased fallback padding to prevent tight cuts on failed detections
+FALLBACK_PAD_FRAC = 0.05 
 # -----------------------------------------------------------
 
 def ensure_dir(p: Path):
@@ -45,19 +53,26 @@ def clip(a, lo, hi):
     return max(lo, min(hi, a))
 
 def expand_box(x, y, w, h, pad, W, H):
-    x2, y2 = x + w, y + h
-    x = clip(int(x - pad), 0, W-1)
-    y = clip(int(y - pad), 0, H-1)
-    x2 = clip(int(x2 + pad), 0, W-1)
-    y2 = clip(int(y2 + pad), 0, H-1)
-    return x, y, x2-x, y2-y
+    """
+    Expands the bounding box by 'pad' pixels on all sides,
+    clipping to image boundaries.
+    """
+    x1 = clip(int(x - pad), 0, W-1)
+    y1 = clip(int(y - pad), 0, H-1)
+    
+    # x2 and y2 calculation based on original w, h
+    x2 = clip(int(x + w + pad), 0, W-1)
+    y2 = clip(int(y + h + pad), 0, H-1)
+    
+    return x1, y1, x2 - x1, y2 - y1
 
-def valid_bbox(w,h,W,H):
-    ar = w/(h+1e-6)
-    area = w*h
-    return (ASPECT_MIN <= ar <= ASPECT_MAX) and (area < MAX_AREA_FRAC*W*H)
+def valid_bbox(w, h, W, H):
+    ar = w / (h + 1e-6)
+    area = w * h
+    return (ASPECT_MIN <= ar <= ASPECT_MAX) and (area < MAX_AREA_FRAC * W * H)
 
-# ---------- detectors that also return "well counts" ----------
+# ---------- Detectors ----------
+
 def make_ring_template(radius, thickness):
     R = int(round(radius))
     T = max(1, int(round(thickness)))
@@ -105,16 +120,22 @@ def detect_ring(gray):
     xs = np.array([c[0] for c in centers])
     ys = np.array([c[1] for c in centers])
     r  = np.mean(radii)
+
+    # BBox around CENTERS
     x, y = int(xs.min()), int(ys.min())
     x2, y2 = int(xs.max()), int(ys.max())
-    pad = int(max(r, PAD_FRAC*min(H, W)))
+    
+    # --- FIX FOR SHARPNESS ---
+    # Previous logic used max(r, global_pad).
+    # New logic: Pad = Radius (to reach edge) + 20% Radius (plastic rim) + Global Buffer
+    pad = int(r * 1.2) + int(PAD_FRAC * min(H, W))
+    
     x, y, w, h = expand_box(x, y, x2-x, y2-y, pad, W, H)
     if not valid_bbox(w,h,W,H):
         return None, 0
     return (x,y,w,h), count
 
 def detect_purple(img):
-    """Return (bbox, count_estimate) or (None, 0). Count is # round-ish purple blobs."""
     H, W = img.shape[:2]
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     mask_total = np.zeros((H,W), dtype=np.uint8)
@@ -122,6 +143,7 @@ def detect_purple(img):
         lower = np.array([lo_h, SAT_MIN, VAL_MIN], dtype=np.uint8)
         upper = np.array([hi_h, 255, 255], dtype=np.uint8)
         mask_total = cv2.bitwise_or(mask_total, cv2.inRange(hsv, lower, upper))
+    
     mask = cv2.medianBlur(mask_total, 5)
     kernel = np.ones((7,7), np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
@@ -139,7 +161,7 @@ def detect_purple(img):
         if area < np.pi*minR*minR*0.4:
             continue
         perim = cv2.arcLength(cnt, True)
-        if perim == 0: 
+        if perim == 0:  
             continue
         circularity = 4*np.pi*area/(perim*perim)
         if circularity < 0.6:
@@ -151,18 +173,23 @@ def detect_purple(img):
     if not good:
         return None, 0
 
-    xs = np.array([g[0] for g in good]); ys = np.array([g[1] for g in good])
-    r  = np.mean(radii)
+    xs = np.array([g[0] for g in good])
+    ys = np.array([g[1] for g in good])
+    r  = np.mean(radii) if radii else minR
+
     x, y = int(xs.min()), int(ys.min())
     x2, y2 = int(xs.max()), int(ys.max())
-    pad = int(max(r, PAD_FRAC*min(H, W)))
+
+    # --- FIX FOR SHARPNESS ---
+    # Ensure we cover the radius + extra buffer
+    pad = int(r * 1.2) + int(PAD_FRAC * min(H, W))
+
     x, y, w, h = expand_box(x, y, x2-x, y2-y, pad, W, H)
     if not valid_bbox(w,h,W,H):
         return None, 0
     return (x,y,w,h), len(good)
 
 def detect_hough(gray):
-    """Return (bbox, count) or (None, 0)."""
     H, W = gray.shape
     clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
     g = clahe.apply(gray)
@@ -182,16 +209,24 @@ def detect_hough(gray):
     if cnt < 4:
         return None, 0
 
-    xs = circles[:,0]; ys = circles[:,1]; r = circles[:,2].mean()
+    xs = circles[:,0]
+    ys = circles[:,1]
+    r = circles[:,2].mean()
+
     x, y = int(xs.min()), int(ys.min())
     x2, y2 = int(xs.max()), int(ys.max())
-    pad = int(max(r, PAD_FRAC*min(H, W)))
+
+    # --- FIX FOR SHARPNESS ---
+    pad = int(r * 1.2) + int(PAD_FRAC * min(H, W))
+
     x, y, w, h = expand_box(x, y, x2-x, y2-y, pad, W, H)
     if not valid_bbox(w,h,W,H):
         return None, 0
     return (x,y,w,h), cnt
 
 def detect_edges(gray):
+    # This detector doesn't have a concept of "wells" or "radius", 
+    # so we just increase the global padding
     H, W = gray.shape
     g = cv2.GaussianBlur(gray, (5,5), 0)
     edges = cv2.Canny(g, 50, 150)
@@ -212,31 +247,34 @@ def detect_edges(gray):
             best = (x,y,w,h)
     if best is None:
         return None
-    pad = int(PAD_FRAC*min(W,H))
+        
+    # Increase padding for edge fallback as well
+    pad = int(0.08 * min(W,H)) 
     x,y,w,h = expand_box(*best, pad, W, H)
     return (x,y,w,h)
 
-# ---------- main decision with fallback ----------
+# ---------- Main Decision ----------
+
 def find_plate_bbox_and_count(img):
     H, W = img.shape[:2]
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    # 1) Ring-template matching (robust to low contrast)
+    # 1) Ring-template
     bbox, count = detect_ring(gray)
     if bbox is not None and count >= MIN_WELLS_FOR_CONFIDENT:
         return bbox, count
 
-    # 2) Color-based wells (validated)
+    # 2) Color
     bbox, count = detect_purple(img)
     if bbox is not None and count >= MIN_WELLS_FOR_CONFIDENT:
         return bbox, count
 
-    # 3) Hough circles
+    # 3) Hough
     bbox, count = detect_hough(gray)
     if bbox is not None and count >= MIN_WELLS_FOR_CONFIDENT:
         return bbox, count
 
-    # 4) Edges with constraints (no count available)
+    # 4) Edges
     bbox = detect_edges(gray)
     if bbox is not None:
         return bbox, 0
@@ -244,34 +282,31 @@ def find_plate_bbox_and_count(img):
     return (0,0,W,H), 0
 
 def crop_with_fallback(img, calibrated_rect_norm=None):
-    """Try to detect; if not enough wells, use calibrated rect or default fractions."""
     H, W = img.shape[:2]
     bbox, count = find_plate_bbox_and_count(img)
 
     if count >= MIN_WELLS_FOR_CONFIDENT:
-        # Detection is confident: optionally update calibration
+        # Confident detection
         x,y,w,h = bbox
         rect_norm = (x/W, y/H, w/W, h/H)
         return img[y:y+h, x:x+w], rect_norm, True
 
-    # Not confident -> use fallback (prefer calibrated; else default)
+    # Fallback
     if calibrated_rect_norm is None:
         fx, fy, fw, fh = FALLBACK_RECT_DEFAULT
     else:
         fx, fy, fw, fh = calibrated_rect_norm
 
-    # convert to pixels
-    x = fx * W
-    y = fy * H
-    w = fw * W
-    h = fh * H
+    x = int(fx * W)
+    y = int(fy * H)
+    w = int(fw * W)
+    h = int(fh * H)
 
-    # *** make fallback rectangle bigger ***
-    pad = int(FALLBACK_PAD_FRAC * min(W, H))  # e.g. 0.1 → 10% of min side
+    # Make fallback padding bigger too
+    pad = int(FALLBACK_PAD_FRAC * min(W, H))
     x, y, w, h = expand_box(x, y, w, h, pad, W, H)
 
     return img[y:y+h, x:x+w], calibrated_rect_norm, False
-
 
 def process_folder(src_root: Path, dst_root: Path):
     files = [p for p in src_root.rglob("*") if p.suffix.lower() in IMAGE_EXTS]
@@ -281,7 +316,10 @@ def process_folder(src_root: Path, dst_root: Path):
 
     ensure_dir(dst_root)
 
-    calibrated_rect_norm = None  # auto-learned from first confident detection
+    calibrated_rect_norm = None
+
+    #Create a list to store filenames that failed detection
+    fallback_list = []
 
     for src in files:
         rel = src.relative_to(src_root)
@@ -295,16 +333,33 @@ def process_folder(src_root: Path, dst_root: Path):
 
         cropped, learned_rect, confident = crop_with_fallback(img, calibrated_rect_norm)
 
-        # Update calibration if we had a confident detection
         if confident:
             calibrated_rect_norm = learned_rect
-
+        else:
+            #Add the file to the list if not confident
+            fallback_list.append(rel)
+            
         if cv2.imwrite(str(dst), cropped):
             tag = "detected" if confident else "fallback"
             print(f"Saved ({tag}): {dst}")
         else:
             print(f"Failed to save: {dst}")
 
+    # Print Summary
+    print("\n" + "="*50)
+    if fallback_list:
+        print(f"SUMMARY: {len(files) - len(fallback_list)}/{len(files)} images SUCCESSFULLY cropped !")
+        print(f"  => {len(fallback_list)} image(s crop are not confident and need to be checked mannually:")
+        for f in fallback_list:
+            print(f"  [X] {f}")
+    else:
+        print("SUMMARY: Perfect run! All images were confidently detected.")
+    print("="*50 + "\n")
+
+
 def main():
     ensure_dir(DST_ROOT)
     process_folder(SRC_ROOT, DST_ROOT)
+
+if __name__ == "__main__":
+    main()
