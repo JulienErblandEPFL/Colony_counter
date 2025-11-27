@@ -1,14 +1,22 @@
 import pandas as pd
 import glob
 import os
+import sys
 
-ROOT_FOLDER = "data/"
-OUTPUT_FILE = "global_counting_data.xlsx"
+# Trouve le chemin du répertoire contenant Le script (ici /Colony_counter/src/preprocessing) puis remonte de 2x ../ pour arriver à /Colony_counter
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+sys.path.insert(0, ROOT)
+
+DATA_FOLDER = os.path.join(ROOT, "data", "raw")
+SEARCH_PATTERN = os.path.join(DATA_FOLDER, "**", "*.xlsx")
+
+OUTPUT_FILE = os.path.join(ROOT, "data", "global_counting_data.xlsx")
+
 
 rows = []
 
 # Cherche tous les .xlsx dans tous les sous-dossiers
-for file in glob.glob(ROOT_FOLDER + "**/*.xlsx", recursive=True):
+for file in glob.glob(SEARCH_PATTERN, recursive=True):
 
     df = pd.read_excel(file, header=None)
 
