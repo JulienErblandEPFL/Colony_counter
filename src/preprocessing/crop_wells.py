@@ -41,6 +41,8 @@ def crop_wells(file_path, plate_type, debug=False, save_files=True):
     gray = cv2.GaussianBlur(gray, (9, 9), 2)
     gray = cv2.equalizeHist(gray)
 
+    """
+    #HARD PARAMETER
     # Base parameters for Hough Circles
     params = dict(
         dp=1.2,
@@ -50,6 +52,20 @@ def crop_wells(file_path, plate_type, debug=False, save_files=True):
         minRadius=130,
         maxRadius=160
     )
+    """
+    # DYNAMIC ESTIMATION
+    height, width = gray.shape[:2]  #load image
+    estimated_radius = int(height / 8)  # For a 12-well plate (3 rows), the well radius is roughly height / 8
+    
+    params = dict(
+        dp=1.2,
+        minDist=int(estimated_radius * 2.2),     # Distance between 2 centers is ~ 1 diameter
+        param1=100,
+        param2=60,
+        minRadius=int(estimated_radius * 0.8), # Search between 80%...
+        maxRadius=int(estimated_radius * 1.2)  # ...and 120% of the estimate
+    )
+
 
     # Try to find exactly 12 wells by tuning param2
     best_circles = None
@@ -148,6 +164,8 @@ if __name__ == "__main__":
 
     print(f"Found {len(image_paths)} images to process.")
 
+    failed_images = [] 
+
     for img_path in tqdm(image_paths, desc="Cropping wells"):
         try:
             # Extract plate type from the parent directory name
@@ -158,3 +176,17 @@ if __name__ == "__main__":
 
         except Exception as e:
             print(f"\nError processing {img_path}: {e}")
+            failed_images.append((img_path, str(e)))
+    
+    print("\n" + "="*50)
+    print("                      SUMMARY")
+    print("="*50)
+
+    if len(failed_images) == 0:
+        print("Success! All images have been processed.")
+    else:
+        print(f"{len(failed_images)} failures out of {len(image_paths)} images:\n")
+        for path, error_msg in failed_images:
+            print(f"• File : {path}")
+            #print(f"  Error: {error_msg}")
+    print("="*50)
