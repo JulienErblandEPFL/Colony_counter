@@ -22,7 +22,11 @@ def crop_wells(file_path, plate_type, debug=False, save_files=True):
 
     # New directory structure:
     # cropped_wells/{plate_type}/plate_x/
-    base_dir = "cropped_wells"
+
+    ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+    sys.path.insert(0, ROOT)
+
+    base_dir = Path(os.path.join(ROOT, "data", "cropped_wells"))
     type_dir = os.path.join(base_dir, plate_type)
     output_dir = os.path.join(type_dir, plate_name)
 
@@ -41,25 +45,14 @@ def crop_wells(file_path, plate_type, debug=False, save_files=True):
     gray = cv2.GaussianBlur(gray, (9, 9), 2)
     gray = cv2.equalizeHist(gray)
 
-    """
-    #HARD PARAMETER
-    # Base parameters for Hough Circles
-    params = dict(
-        dp=1.2,
-        minDist=150,
-        param1=100,
-        param2=60,
-        minRadius=130,
-        maxRadius=160
-    )
-    """
+    
     # DYNAMIC ESTIMATION
     height, width = gray.shape[:2]  #load image
     estimated_radius = int(height / 8)  # For a 12-well plate (3 rows), the well radius is roughly height / 8
     
     params = dict(
         dp=1.2,
-        minDist=int(estimated_radius * 2.2),     # Distance between 2 centers is ~ 1 diameter
+        minDist=int(estimated_radius),
         param1=100,
         param2=60,
         minRadius=int(estimated_radius * 0.8), # Search between 80%...
