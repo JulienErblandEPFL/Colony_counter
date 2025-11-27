@@ -45,10 +45,22 @@ def crop_wells(file_path, plate_type, debug=False, save_files=True):
     gray = cv2.GaussianBlur(gray, (9, 9), 2)
     gray = cv2.equalizeHist(gray)
 
+    """
+    #HARD PARAMETER
+    # Base parameters for Hough Circles
+    params = dict(
+        dp=1.2,
+        minDist=150,
+        param1=100,
+        param2=60,
+        minRadius=130,
+        maxRadius=160
+    )
+    """
     
     # DYNAMIC ESTIMATION
     height, width = gray.shape[:2]  #load image
-    estimated_radius = int(height / 8)  # For a 12-well plate (3 rows), the well radius is roughly height / 8
+    estimated_radius = int(height / 7)  # For a 12-well plate (3 rows), the well radius is roughly height / 7
     
     params = dict(
         dp=1.2,
@@ -58,6 +70,7 @@ def crop_wells(file_path, plate_type, debug=False, save_files=True):
         minRadius=int(estimated_radius * 0.8), # Search between 80%...
         maxRadius=int(estimated_radius * 1.2)  # ...and 120% of the estimate
     )
+    
 
 
     # Try to find exactly 12 wells by tuning param2
