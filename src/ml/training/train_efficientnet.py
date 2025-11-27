@@ -22,6 +22,13 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 def train_efficientnet(csv_path, batch_size=16, epochs=10, lr=1e-4):
     # Load data
     df = pd.read_csv(csv_path).dropna(subset=["value"])
+    
+    #to not train on all the -1 values (WE SHOULD DO A CLASSIFIER LATER WITH THOSE)
+    df = df[df["value"] >= 0]
+
+    #to make the model understand that -1 means "A LOT"
+    #df.loc[df["value"] == -1, "value"] = 200
+
     train_df, val_df = train_test_split(df, test_size=0.2, random_state=42)
 
     # Datasets
@@ -64,10 +71,12 @@ def train_efficientnet(csv_path, batch_size=16, epochs=10, lr=1e-4):
                 preds = model(imgs)
                 val_loss += criterion(preds, labels).item()
 
-        print(f"Epoch {epoch+1}/{epochs} | Train MSE={train_loss:.4f} | Val MSE={val_loss:.4f}")
+        avg_train_loss = train_loss / len(train_loader)
+        avg_val_loss = val_loss / len(val_loader)     
+        print(f"Epoch {epoch+1}/{epochs} | Train set MSE={avg_train_loss:.4f} | Validation set MSE={avg_val_loss:.4f}")
 
     torch.save(model.state_dict(), "efficientnet_b0_colony.pth")
     print("Model saved to efficientnet_b0_colony.pth")
 
 if __name__ == "__main__":
-    train_efficientnet("data/dataset.csv", batch_size=16, epochs=10, lr=1e-4)
+    train_efficientnet("data/dataset.csv", batch_size=16, epochs=20, lr=1e-4)
