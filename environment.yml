@@ -9,7 +9,10 @@ dependencies:
   - scikit-learn
   - pandas
   - pillow
+  - openpyxl
+  - matplotlib
   - pip
   - pip:
       - torch
       - torchvision
+      - tqdm
