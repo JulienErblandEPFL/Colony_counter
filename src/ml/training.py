@@ -121,15 +121,34 @@ def train_model(
     return model, (train_losses, val_losses)
 
 
-if __name__ == "__main__":
-    from src.ml.models.EfficientNet import EfficientNetB0Regressor
+import argparse
+from src.ml.models.model_dictionary import MODEL_DICTIONARY
 
+if __name__ == "__main__":
+    
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", type=str, required=True,
+                        help="Model name from MODEL_DICTIONARY")
+    parser.add_argument("--csv", type=str, default="data/dataset.csv")
+    parser.add_argument("--epochs", type=int, default=10)
+    args = parser.parse_args()
+
+    # Lookup model
+    if args.model not in MODEL_DICTIONARY:
+        raise ValueError(f"Unknown model '{args.model}'. Available: {list(MODEL_DICTIONARY.keys())}")
+
+    entry = MODEL_DICTIONARY[args.model]
+
+    model_class  = entry["class"]
+    model_kwargs = entry.get("kwargs", {})
+    save_path    = entry["weights"]          # automatic save file name
+
+    # Run training
     train_model(
-        csv_path="data/dataset.csv",
-        model_class=EfficientNetB0Regressor,
-        model_kwargs={"pretrained": True},
-        batch_size=16,
-        epochs=10,
-        lr=1e-4,
-        save_path="efficientnet_b0_colony.pth"
+        csv_path=args.csv,
+        model_class=model_class,
+        model_kwargs=model_kwargs,
+        epochs=args.epochs,
+        save_path=save_path,
     )

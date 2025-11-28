@@ -94,24 +94,71 @@ def evaluate_model(
     return preds, labels
 
 
+import argparse
+import random
+from src.ml.models.model_dictionary import MODEL_DICTIONARY
+
 if __name__ == "__main__":
-    import random
-    df = pd.read_csv("data/dataset.csv")
+
+    parser = argparse.ArgumentParser(description="Evaluate a colony counting model")
+
+    parser.add_argument("--model", required=True,
+                        help="Model key from MODEL_DICTIONARY, e.g. 'EfficientNet'")
+
+    parser.add_argument("--csv", default="data/dataset.csv",
+                        help="Path to dataset CSV(default: data/dataset.csv)")
+
+    parser.add_argument("--weights", default=None,
+                        help="Optional override for weight file")
+
+    parser.add_argument("--samples", type=int, default=10,
+                        help="Number of random samples to show(default: 10)")
+
+    args = parser.parse_args()
+
+    #Load and filter dataset
+    df = pd.read_csv(args.csv)
     df = df[df["value"] >= 0].reset_index(drop=True)
 
-    preds, labels = evaluate_model("data/dataset.csv", "efficientnet_b0_colony.pth", EfficientNetB0Regressor)
+    #Load model arguments from dictionary
+    if args.model not in MODEL_DICTIONARY:
+        raise ValueError(
+            f"Unknown model '{args.model}'. Available: {list(MODEL_DICTIONARY.keys())}"
+        )
 
+    entry = MODEL_DICTIONARY[args.model]
+
+    model_class  = entry["class"]
+    model_kwargs = entry.get("kwargs", {})
+    model_path   = args.weights or entry["weights"]
+
+    print(f"\nUsing model: {args.model}")
+    print(f"Model class: {model_class.__name__}")
+    print(f"Loading weights: {model_path}")
+
+    #Run evaluation
+    preds, labels = evaluate_model(
+        csv_path=args.csv,
+        model_path=model_path,
+        model_class=model_class,
+        model_kwargs=model_kwargs,
+    )
+
+    #Print random samples
     print("\n--- Random Sample Predictions (Valid Wells Only) ---")
-    indices = random.sample(range(len(df)), 10)
+
+    indices = random.sample(range(len(df)), args.samples)
 
     for idx in indices:
         row = df.iloc[idx]
         filename = os.path.basename(row["path"])
-        plate_name = next((p for p in filename.split("_") if "plate" in p.lower()), "unknown")
-        
+        plate_name = next(
+            (p for p in filename.split("_") if "plate" in p.lower()), "unknown"
+        )
+
         print(
             f"Plate: {plate_name:10s} | "
-            f"File: {filename:30s} | "
+            f"File:  {filename:30s} | "
             f"Pred: {preds[idx].item():6.2f} | "
             f"True: {labels[idx].item():6.2f}"
         )
