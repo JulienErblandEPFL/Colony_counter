@@ -17,3 +17,5 @@ class EfficientNetB0Regressor(nn.Module):
 
     def forward(self, x):
         return torch.relu(self.model(x))
+        # return self.model(x)
+

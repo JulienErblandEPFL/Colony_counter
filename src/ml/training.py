@@ -12,12 +12,17 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 import pandas as pd
+import argparse
 
 from src.ml.data.dataset import ColonyDataset
 from src.ml.data.transforms import get_train_transforms, get_test_transforms
+from src.ml.models.model_dictionary import MODEL_DICTIONARY
 
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+CRITERION = nn.L1Loss()
+IMG_SIZE = 224
+BATCH_SIZE = 16
 
 
 def train_model(
@@ -26,10 +31,11 @@ def train_model(
     model_kwargs=None,       # Extra args for model
     optimizer_class=optim.Adam,
     optimizer_kwargs=None,
-    criterion=nn.MSELoss(),
-    batch_size: int = 16,
+    criterion=CRITERION,
+    batch_size: int = BATCH_SIZE,
     epochs: int = 30,
     lr: float = 1e-4,
+    img_size: int = IMG_SIZE,
     save_path: str = "model.pth",
 ):
     """
@@ -41,10 +47,11 @@ def train_model(
         model_kwargs: Arguments passed to the model constructor.
         optimizer_class: Optimizer (Adam, SGD...)
         optimizer_kwargs: Extra optimizer args.
-        criterion: Loss function (default MSE).
+        criterion: Loss function.
         batch_size: Batch size.
         epochs: Number of epochs.
         lr: Learning rate (also used if optimizer_kwargs is empty)
+        img_siz: Image size needed from the model.
         save_path: Path where model is saved.
 
     Returns:
@@ -58,11 +65,14 @@ def train_model(
     df = pd.read_csv(csv_path).dropna(subset=["value"])
     df = df[df["value"] >= 0]  # Keep only valid labels
 
-    train_df, val_df = train_test_split(df, test_size=0.2, random_state=42)
+    train_df, temp_df = train_test_split(df, test_size=0.3, random_state=42)
+    val_df, test_df   = train_test_split(temp_df, test_size=0.5, random_state=42)
+    test_df.to_csv("data/test_split_from_training.csv", index=False)
 
     # --- Dataset & loaders ---
     train_ds = ColonyDataset(df=train_df, transform=get_train_transforms())
     val_ds   = ColonyDataset(df=val_df,  transform=get_test_transforms())
+
 
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
     val_loader   = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
@@ -76,7 +86,7 @@ def train_model(
     val_losses = []
 
     start_time = time.perf_counter()
-    print(f"{'Epoch':^12} | {'Train MSE':^12} | {'Val MSE':^12} | {'Epoch time':^12}")
+    print(f"{'Epoch':^12} | {'Train Loss':^12} | {'Val Loss':^12} | {'Epoch time':^12}")
     print("-" * 60)
 
     # --- Training Loop ---
@@ -97,7 +107,7 @@ def train_model(
             loss.backward()
             optimizer.step()
 
-            total_train_loss += loss.item()
+            total_train_loss += loss.item() * imgs.size(0) # last batch can have different size
 
         # Validation
         model.eval()
@@ -107,10 +117,10 @@ def train_model(
                 imgs = imgs.to(DEVICE)
                 labels = labels.to(DEVICE).unsqueeze(1)
                 preds = model(imgs)
-                total_val_loss += criterion(preds, labels).item()
+                total_val_loss += criterion(preds, labels).item() * imgs.size(0)
 
-        avg_train_loss = total_train_loss / len(train_loader)
-        avg_val_loss = total_val_loss / len(val_loader)
+        avg_train_loss = total_train_loss / len(train_ds)
+        avg_val_loss = total_val_loss / len(val_ds)
 
         train_losses.append(avg_train_loss)
         val_losses.append(avg_val_loss)
@@ -139,12 +149,7 @@ def train_model(
     return model, (train_losses, val_losses)
 
 
-import argparse
-from src.ml.models.model_dictionary import MODEL_DICTIONARY
-
 if __name__ == "__main__":
-    
-
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, required=True,
                         help="Model name from MODEL_DICTIONARY")
@@ -162,6 +167,7 @@ if __name__ == "__main__":
     model_kwargs = entry.get("kwargs", {})
     save_path    = entry["weights"]          # automatic save file name
 
+    print(f"\nUsing model: {args.model}")
     # Run training
     train_model(
         csv_path=args.csv,
