@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 
 # Find project root (the folder that contains "src/")
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
@@ -27,7 +28,7 @@ def train_model(
     optimizer_kwargs=None,
     criterion=nn.MSELoss(),
     batch_size: int = 16,
-    epochs: int = 10,
+    epochs: int = 30,
     lr: float = 1e-4,
     save_path: str = "model.pth",
 ):
@@ -74,11 +75,17 @@ def train_model(
     train_losses = []
     val_losses = []
 
+    start_time = time.perf_counter()
+    print(f"{'Epoch':^12} | {'Train MSE':^12} | {'Val MSE':^12} | {'Epoch time':^12}")
+    print("-" * 60)
+
     # --- Training Loop ---
     for epoch in range(epochs):
+        epoch_start = time.perf_counter()
+
         # Train
         model.train()
-        total_train_loss = 0
+        total_train_loss = 0.0
 
         for imgs, labels in train_loader:
             imgs = imgs.to(DEVICE)
@@ -94,7 +101,7 @@ def train_model(
 
         # Validation
         model.eval()
-        total_val_loss = 0
+        total_val_loss = 0.0
         with torch.no_grad():
             for imgs, labels in val_loader:
                 imgs = imgs.to(DEVICE)
@@ -108,11 +115,22 @@ def train_model(
         train_losses.append(avg_train_loss)
         val_losses.append(avg_val_loss)
 
+        epoch_time = time.perf_counter() - epoch_start
+        total_time = time.perf_counter() - start_time
+
+        epoch_str = f"{epoch+1}/{epochs}"
+        time_str = f"{epoch_time:.2f}s"
         print(
-            f"Epoch {epoch+1}/{epochs} | "
-            f"Train MSE={avg_train_loss:.4f} | "
-            f"Test MSE={avg_val_loss:.4f}"
+            f"{epoch_str:^12} | "
+            f"{avg_train_loss:^12.4f} | "
+            f"{avg_val_loss:^12.4f} | "
+            f"{time_str:^12}  "
         )
+        print("-" * 60)
+
+
+    print("-" * 60)
+    print(f"Training finished in {total_time:0.1f} seconds.")
 
     # Save model
     torch.save(model.state_dict(), save_path)
