@@ -15,14 +15,17 @@ from src.ml.data.transforms import get_train_transforms, get_test_transforms
 from src.ml.models.EfficientNet import EfficientNetB0Regressor
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
+IMG_SIZE = 224
+BATCH_SIZE = 16
+CSV_PATH = "data/test_split_from_training.csv"
 
 def evaluate_model(
-    csv_path: str,
     model_path: str,
     model_class,             # <-- pass your model class here
+    csv_path: str = CSV_PATH,
     model_kwargs=None,       # <-- extra args for the model
-    batch_size: int = 16,
+    batch_size: int = BATCH_SIZE,
+    img_size: int = IMG_SIZE,
     transforms=None
 ):
     """
@@ -41,7 +44,7 @@ def evaluate_model(
     """
 
     model_kwargs = model_kwargs or {}
-    transforms = transforms or get_test_transforms()
+    transforms = transforms or get_test_transforms(img_size=img_size)
 
     # --- Load dataset ---
     df = pd.read_csv(csv_path).dropna(subset=["value"])
@@ -66,22 +69,37 @@ def evaluate_model(
 
             preds = model(imgs).squeeze(1)
 
-            all_preds.extend(preds.cpu().numpy())
-            all_labels.extend(labels.cpu().numpy())
+            all_preds.append(preds.cpu())
+            all_labels.append(labels.cpu())
 
     # --- Convert to tensors ---
-    preds = torch.tensor(all_preds, dtype=torch.float32)
-    labels = torch.tensor(all_labels, dtype=torch.float32)
+    preds = torch.cat(all_preds, dim=0).float()
+    labels = torch.cat(all_labels, dim=0).float()
 
     # --- Metrics ---
-    mae = torch.mean(torch.abs(preds - labels)).item()
-    mse = torch.mean((preds - labels) ** 2).item()
-    rmse = mse ** 0.5
-    r2 = 1 - mse / torch.var(labels).item()
+    abs_error = torch.abs(preds - labels)
 
-    # Accuracy within 10% relative error
-    tolerance = 0.10
-    accuracy_mask = torch.abs(preds - labels) <= tolerance * torch.clamp(labels, min=1e-8)
+    mae = abs_error.mean().item()
+    mse = ((preds - labels) ** 2).mean().item()
+    rmse = mse ** 0.5
+
+    y_mean = labels.mean()
+    ss_res = ((preds - labels) ** 2).sum().item()
+    ss_tot = ((labels - y_mean) ** 2).sum().item()
+    r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else float("nan")
+
+
+    # Accuracy
+    tolerance_rel = 0.10   # 10% relative error
+    tolerance_zero = 0.5   # absolute error allowed when true count is 0
+
+    per_sample_tol = torch.where(
+        labels == 0,
+        torch.full_like(labels, tolerance_zero),
+        tolerance_rel * labels,
+    )
+
+    accuracy_mask = abs_error <= per_sample_tol
     accuracy = accuracy_mask.float().mean().item()
 
     print("\n--- Evaluation ---")
@@ -89,7 +107,7 @@ def evaluate_model(
     print(f"MSE  : {mse:.4f}")
     print(f"RMSE : {rmse:.4f}")
     print(f"R^2  : {r2:.4f}")
-    print(f"Accuracy (+/- 10%): {accuracy*100:.2f} %")
+    print(f"Accuracy (0.5 @ 0, +/- 10% otherwise): {accuracy*100:.2f} %")
 
     return preds, labels
 
@@ -105,8 +123,8 @@ if __name__ == "__main__":
     parser.add_argument("--model", required=True,
                         help="Model key from MODEL_DICTIONARY, e.g. 'EfficientNet'")
 
-    parser.add_argument("--csv", default="data/dataset.csv",
-                        help="Path to dataset CSV(default: data/dataset.csv)")
+    parser.add_argument("--csv", default=CSV_PATH,
+                        help="Path to dataset CSV(default: data/test_split_from_training.csv)")
 
     parser.add_argument("--weights", default=None,
                         help="Optional override for weight file")
@@ -147,7 +165,8 @@ if __name__ == "__main__":
     #Print random samples
     print("\n--- Random Sample Predictions (Valid Wells Only) ---")
 
-    indices = random.sample(range(len(df)), args.samples)
+    n_samples = min(args.samples, len(df))
+    indices = random.sample(range(len(df)), n_samples)
 
     for idx in indices:
         row = df.iloc[idx]
