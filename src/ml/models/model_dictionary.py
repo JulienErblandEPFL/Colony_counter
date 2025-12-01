@@ -1,6 +1,8 @@
 from src.ml.models.EfficientNet import EfficientNetB0Regressor
 from src.ml.models.ColonyCNN import ColonyCNNRegressor
 from src.ml.models.ResNet34 import ResNet34Regressor
+from src.ml.models.CountabilityClassifier import CountabilityClassifier
+
 
 
 MODEL_DICTIONARY = {
@@ -22,5 +24,13 @@ MODEL_DICTIONARY = {
             "freeze_backbone": False
         },
         "weights": "resnet34_colony.pth",
+    },
+    "CountabilityClassifier": {
+        "class": CountabilityClassifier,
+        "kwargs": {
+            "backbone": "efficientnet_b0",   # same naming as training script
+            "pretrained": True               # keep it flexible
+        },
+        "weights": "countability_classifier.pth",
     }
 }
