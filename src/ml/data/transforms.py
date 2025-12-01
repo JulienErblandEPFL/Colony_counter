@@ -46,9 +46,9 @@ def get_train_transforms(
         transforms.ToTensor(),
     ]
 
-    norm = _build_normalization(mean=mean, std=std, use_imagenet_stats=use_imagenet_stats)
-    if norm is not None:
-        tfms.append(norm)
+    #norm = _build_normalization(mean=mean, std=std, use_imagenet_stats=use_imagenet_stats)
+    #if norm is not None:
+    #    tfms.append(norm)
 
     return transforms.Compose(tfms)
 
@@ -67,8 +67,8 @@ def get_test_transforms(
         transforms.ToTensor(),
     ]
 
-    norm = _build_normalization(mean=mean, std=std, use_imagenet_stats=use_imagenet_stats)
-    if norm is not None:
-        tfms.append(norm)
+    #norm = _build_normalization(mean=mean, std=std, use_imagenet_stats=use_imagenet_stats)
+    #if norm is not None:
+    #    tfms.append(norm)
 
     return transforms.Compose(tfms)

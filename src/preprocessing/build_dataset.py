@@ -32,13 +32,23 @@ def build_dataset():
 
             value = label_dict.get(f, None)  # Match by filename
 
+            if value is None:
+                is_countable = 0
+            else:
+                try:
+                    num_val = float(value)
+                    is_countable = 1 if num_val >= 0 else 0
+                except:
+                    is_countable = 0
+
             rows.append({
                 "filename": f,
                 "value": value,
+                "is_countable": is_countable,
                 "path": full_path,
-                "plate_type": f.split("_")[0],           # Panama
-                "plate_id": f.split("_")[1],             # plate1
-                "well": f.split("_")[2].split(".")[0],   # A1
+                "plate_type": f.split("_")[0],
+                "plate_id": f.split("_")[1],
+                "well": f.split("_")[2].split(".")[0],
             })
 
     dataset = pd.DataFrame(rows)
@@ -48,6 +58,9 @@ def build_dataset():
     print(f"Dataset saved to {OUTPUT_CSV}")
     print(f"Total wells: {len(dataset)}")
     print(f"Labeled wells: {dataset['value'].notna().sum()}")
+    print(f"Countable wells: {dataset['is_countable'].sum()}")
+    print(f"Uncountable wells: {(dataset['is_countable'] == 0).sum()}")
+
 
 
 if __name__ == "__main__":

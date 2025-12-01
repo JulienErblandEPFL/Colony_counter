@@ -10,10 +10,11 @@ import torch
 import pandas as pd
 from torch.utils.data import DataLoader
 
-from ml.data.dataset import ColonyDataset
-from ml.data.transforms import get_val_transforms
-from ml.models.CountabilityClassifier import CountabilityClassifier
+from src.ml.data.dataset import ColonyDataset
+from src.ml.data.transforms import get_test_transforms
+from src.ml.models.CountabilityClassifier import CountabilityClassifier
 
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 @torch.no_grad()
 def evaluate_classifier(model, loader):
@@ -21,7 +22,7 @@ def evaluate_classifier(model, loader):
     correct, total = 0, 0
 
     for imgs, labels in loader:
-        imgs, labels = imgs.cuda(), labels.cuda()
+        imgs, labels = imgs.to(DEVICE), labels.to(DEVICE)
 
         logits = model(imgs)
         preds = logits.argmax(dim=1)
@@ -36,12 +37,12 @@ def run_eval(csv_path, weights_path, backbone):
     print(f"[INFO] Loading dataset: {csv_path}")
     df = pd.read_csv(csv_path)
 
-    ds = ColonyDataset(df, transform=get_val_transforms(), task="classify")
+    ds = ColonyDataset(df=df, transform=get_test_transforms(), task="classify")
     loader = DataLoader(ds, batch_size=32)
 
     model = CountabilityClassifier(backbone=backbone)
     model.load_state_dict(torch.load(weights_path))
-    model.cuda()
+    model.to(DEVICE)
 
     acc = evaluate_classifier(model, loader)
     print(f"[RESULT] Accuracy on dataset: {acc:.3f}")
