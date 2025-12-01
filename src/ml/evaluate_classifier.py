@@ -50,7 +50,7 @@ def run_eval(csv_path, weights_path, backbone):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate Countability Classifier")
-    parser.add_argument("--csv", default="data/dataset.csv", help="Dataset CSV containing paths and labels")
+    parser.add_argument("--csv", default="data/test.csv", help="Dataset CSV containing paths and labels")
     parser.add_argument("--weights", default="countability_classifier.pth", help="Model weights .pth file")
     parser.add_argument("--backbone", default="efficientnet_b0", choices=["efficientnet_b0", "resnet34"])
 

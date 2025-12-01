@@ -89,7 +89,7 @@ def train_classifier(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train Countability Classifier")
-    parser.add_argument("--csv", default="data/dataset.csv", help="Path to dataset CSV")
+    parser.add_argument("--csv", default="data/training.csv", help="Path to dataset CSV")
     parser.add_argument("--backbone", default="efficientnet_b0", choices=["efficientnet_b0", "resnet34"])
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--batch", type=int, default=32)

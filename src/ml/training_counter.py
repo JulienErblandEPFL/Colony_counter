@@ -20,7 +20,7 @@ from src.ml.models.model_dictionary import MODEL_DICTIONARY
 
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-CRITERION = nn.L1Loss()
+CRITERION = nn.SmoothL1Loss(beta=1.0)
 IMG_SIZE = 224
 BATCH_SIZE = 16
 
@@ -65,9 +65,9 @@ def train_model(
     df = pd.read_csv(csv_path).dropna(subset=["value"])
     df = df[df["value"] >= 0]  # Keep only valid labels
 
-    train_df, temp_df = train_test_split(df, test_size=0.3, random_state=42)
-    val_df, test_df   = train_test_split(temp_df, test_size=0.5, random_state=42)
-    test_df.to_csv("data/test_split_from_training.csv", index=False)
+    train_df, val_df = train_test_split(df, test_size=0.3, random_state=42)
+    #val_df, test_df   = train_test_split(temp_df, test_size=0.5, random_state=42)
+    #test_df.to_csv("data/test_split_from_training.csv", index=False)
 
     # --- Dataset & loaders ---
     train_ds = ColonyDataset(df=train_df, transform=get_train_transforms())
@@ -153,7 +153,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, required=True,
                         help="Model name from MODEL_DICTIONARY")
-    parser.add_argument("--csv", type=str, default="data/dataset.csv")
+    parser.add_argument("--csv", type=str, default="data/training.csv")
     parser.add_argument("--epochs", type=int, default=10)
     args = parser.parse_args()
 

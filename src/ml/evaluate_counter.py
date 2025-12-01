@@ -17,7 +17,7 @@ from src.ml.models.EfficientNet import EfficientNetB0Regressor
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 IMG_SIZE = 224
 BATCH_SIZE = 16
-CSV_PATH = "data/test_split_from_training.csv"
+CSV_PATH = "data/test.csv"
 
 def evaluate_model(
     model_path: str,
