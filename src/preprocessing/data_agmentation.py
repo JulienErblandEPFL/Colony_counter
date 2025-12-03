@@ -101,6 +101,7 @@ def process_augmentation():
     # Load labels and bin images
     labels = _load_labels(DATA_CSV)
     bins = ["0", "1-5", "5-10", "10-20", "20-40", "40+", "-1"]
+    NA_BINS = {"0", "-1"}  # bins to NOT augment
     bin_to_images = {b: [] for b in bins}
     eligible_images = []
     for abs_path, rel_path in image_files:
@@ -108,35 +109,36 @@ def process_augmentation():
         if lbl is None:
             continue
         count, is_countable = lbl
-        # Treat 0 and -1 like any other bins: include them in augmentation
         b = _assign_bin(count)
         if b is None:
             continue
         bin_to_images[b].append((abs_path, rel_path))
-        eligible_images.append((abs_path, rel_path))
+        # exclude 0 and -1 from augmentation eligibility
+        if b not in NA_BINS:
+            eligible_images.append((abs_path, rel_path))
 
     # Print pre-augmentation bin counts
     print("Eligible images per bin (before):")
     for b in bins:
         print(f"  {b}: {len(bin_to_images[b])}")
+    print("Note: bins 0 and -1 are excluded from augmentation.")
 
-    # Compute stratified augmentation plan
+    # Compute stratified augmentation plan (only augmentable bins)
     total_augs = len(eligible_images) * AUGMENTATION_FACTOR
-    non_empty_bins = [b for b in bins if len(bin_to_images[b]) > 0]
+    non_empty_bins = [b for b in bins if b not in NA_BINS and len(bin_to_images[b]) > 0]
     if not non_empty_bins:
-        print("No eligible images to augment based on labels.")
+        print("No eligible images to augment based on labels (all are 0 or -1).")
         return
     per_bin_target = total_augs // len(non_empty_bins)
     remainder = total_augs % len(non_empty_bins)
 
-    # Assign per-image augmentation counts within each bin
+    # Assign per-image augmentation counts within each augmentable bin
     per_image_aug_counts = defaultdict(int)
     # Distribute base target
     for b in non_empty_bins:
         imgs = bin_to_images[b]
         if not imgs:
             continue
-        # Evenly distribute per_bin_target across images in this bin
         if per_bin_target > 0:
             cycles, extra = divmod(per_bin_target, len(imgs))
             for abs_path, _ in imgs:
@@ -144,7 +146,7 @@ def process_augmentation():
             for i in range(extra):
                 abs_path, _ = imgs[i]
                 per_image_aug_counts[abs_path] += 1
-    # Distribute remainder one-by-one across bins (round-robin)
+    # Distribute remainder one-by-one across augmentable bins (round-robin)
     if remainder > 0:
         idx = 0
         while remainder > 0:
