@@ -26,7 +26,7 @@ def evaluate_model(
     model_kwargs=None,       # <-- extra args for the model
     batch_size: int = BATCH_SIZE,
     img_size: int = IMG_SIZE,
-    transforms=None
+    transforms=None,
 ):
     """
     Generic evaluation function usable for ANY regression model.
@@ -40,7 +40,7 @@ def evaluate_model(
         transforms: Transform function; defaults to test transforms.
 
     Returns:
-        (preds, labels) tensors
+        (preds, labels) tensors -- preds are rounded to nearest integer
     """
 
     model_kwargs = model_kwargs or {}
@@ -76,28 +76,28 @@ def evaluate_model(
     preds = torch.cat(all_preds, dim=0).float()
     labels = torch.cat(all_labels, dim=0).float()
 
+    # Keep raw predictions for metric computation
+    preds_raw = preds.clone()
+
     # --- Metrics ---
-    abs_error = torch.abs(preds - labels)
+    abs_error = torch.abs(preds_raw - labels)
 
     mae = abs_error.mean().item()
-    mse = ((preds - labels) ** 2).mean().item()
+    mse = ((preds_raw - labels) ** 2).mean().item()
     rmse = mse ** 0.5
 
     y_mean = labels.mean()
-    ss_res = ((preds - labels) ** 2).sum().item()
+    ss_res = ((preds_raw - labels) ** 2).sum().item()
     ss_tot = ((labels - y_mean) ** 2).sum().item()
     r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else float("nan")
 
 
     # Accuracy
     tolerance_rel = 0.10   # 10% relative error
-    tolerance_zero = 0.5   # absolute error allowed when true count is 0
 
-    per_sample_tol = torch.where(
-        labels == 0,
-        torch.full_like(labels, tolerance_zero),
-        tolerance_rel * labels,
-    )
+    # Note: no special-case tolerance for labels == 0;
+    # zeros will have tolerance 0 (i.e. must be predicted exactly 0).
+    per_sample_tol = tolerance_rel * labels
 
     accuracy_mask = abs_error <= per_sample_tol
     accuracy = accuracy_mask.float().mean().item()
@@ -107,7 +107,10 @@ def evaluate_model(
     print(f"MSE  : {mse:.4f}")
     print(f"RMSE : {rmse:.4f}")
     print(f"R^2  : {r2:.4f}")
-    print(f"Accuracy (0.5 @ 0, +/- 10% otherwise): {accuracy*100:.2f} %")
+    print(f"Accuracy (+/- 10%): {accuracy*100:.2f} %")
+
+    # Toujours arrondir les prédictions pour affichage / retour
+    preds = preds_raw.round().clamp(min=0)
 
     return preds, labels
 
@@ -178,6 +181,6 @@ if __name__ == "__main__":
         print(
             f"Plate: {plate_name:10s} | "
             f"File:  {filename:30s} | "
-            f"Pred: {preds[idx].item():6.2f} | "
+            f"Pred: {int(preds[idx].item()):6d} | "
             f"True: {labels[idx].item():6.2f}"
         )

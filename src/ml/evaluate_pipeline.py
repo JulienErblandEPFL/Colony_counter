@@ -132,14 +132,16 @@ def evaluate_full_pipeline(
                     img_single, _ = ds_img[0]                   # we ignore the label
                     img_single = img_single.unsqueeze(0).to(device)
 
-                    predicted_count = counter(img_single).item()
-
-                    record["predicted_count"] = float(predicted_count)
+                    # Round prediction to nearest integer and ensure non-negative
+                    raw_pred = counter(img_single).item()
+                    predicted_count = int(max(0, round(raw_pred)))
+                    
+                    record["predicted_count"] = predicted_count
                     record["true_value"] = df_row.get("value", None)
 
                 else:
                     # Classifier rejected this well → no counting performed
-                    record["predicted_count"] = None
+                    record["predicted_count"] = -1 #-1 is the value associated to uncountable
                     record["true_value"] = df_row.get("value", None)
 
                 # Save record
