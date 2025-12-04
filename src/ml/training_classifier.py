@@ -15,7 +15,7 @@ from sklearn.model_selection import train_test_split
 import pandas as pd
 
 from src.ml.data.dataset import ColonyDataset
-from src.ml.data.transforms import get_train_transforms, get_test_transforms
+from src.ml.data.transforms import get_classifier_train_transforms, get_classifier_test_transforms
 from src.ml.models.CountabilityClassifier import CountabilityClassifier
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -50,8 +50,8 @@ def train_classifier(
 
     df_train, df_val = train_test_split(df, test_size=0.2, random_state=42)
 
-    train_ds = ColonyDataset(df=df_train, transform=get_train_transforms(), task="classify")
-    val_ds   = ColonyDataset(df=df_val,   transform=get_test_transforms(),   task="classify")
+    train_ds = ColonyDataset(df=df_train, transform=get_classifier_train_transforms(), task="classify")
+    val_ds   = ColonyDataset(df=df_val,   transform=get_classifier_test_transforms(),   task="classify")
 
     train_loader = DataLoader(train_ds, batch_size=batch, shuffle=True)
     val_loader   = DataLoader(val_ds,   batch_size=batch)

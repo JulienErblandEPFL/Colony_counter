@@ -11,7 +11,7 @@ import pandas as pd
 from torch.utils.data import DataLoader
 
 from src.ml.data.dataset import ColonyDataset
-from src.ml.data.transforms import get_test_transforms
+from src.ml.data.transforms import get_classifier_test_transforms
 from src.ml.models.CountabilityClassifier import CountabilityClassifier
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -37,7 +37,7 @@ def run_eval(csv_path, weights_path, backbone):
     print(f"[INFO] Loading dataset: {csv_path}")
     df = pd.read_csv(csv_path)
 
-    ds = ColonyDataset(df=df, transform=get_test_transforms(), task="classify")
+    ds = ColonyDataset(df=df, transform=get_classifier_test_transforms(), task="classify")
     loader = DataLoader(ds, batch_size=32)
 
     model = CountabilityClassifier(backbone=backbone)

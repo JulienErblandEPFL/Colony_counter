@@ -150,6 +150,12 @@ def build_dataset(augmented: bool = False):
 
 
 if __name__ == "__main__":
-    # Example usage
-    #build_dataset(augmented=False)
-    build_dataset(augmented=True)  # when needed
+    user_input = input(
+        "Do you want to build the dataset using the AUGMENTED wells? [y/N]: "
+    ).strip().lower()
+
+    use_augmented = user_input in ("y", "yes")
+
+    print("\n>> AUGMENTED mode:", use_augmented, "\n")
+
+    build_dataset(augmented=use_augmented)

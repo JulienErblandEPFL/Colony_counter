@@ -15,7 +15,7 @@ import pandas as pd
 import argparse
 
 from src.ml.data.dataset import ColonyDataset
-from src.ml.data.transforms import get_train_transforms, get_test_transforms
+from src.ml.data.transforms import get_counter_train_transforms, get_counter_test_transforms
 from src.ml.models.model_dictionary import MODEL_DICTIONARY
 
 
@@ -70,8 +70,8 @@ def train_model(
     #test_df.to_csv("data/test_split_from_training.csv", index=False)
 
     # --- Dataset & loaders ---
-    train_ds = ColonyDataset(df=train_df, transform=get_train_transforms())
-    val_ds   = ColonyDataset(df=val_df,  transform=get_test_transforms())
+    train_ds = ColonyDataset(df=train_df, transform=get_counter_train_transforms())
+    val_ds   = ColonyDataset(df=val_df,  transform=get_counter_test_transforms())
 
 
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)

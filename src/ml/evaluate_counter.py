@@ -11,7 +11,7 @@ import pandas as pd
 from torch.utils.data import DataLoader
 
 from src.ml.data.dataset import ColonyDataset
-from src.ml.data.transforms import get_train_transforms, get_test_transforms
+from src.ml.data.transforms import get_counter_test_transforms
 from src.ml.models.EfficientNet import EfficientNetB0Regressor
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -44,7 +44,7 @@ def evaluate_model(
     """
 
     model_kwargs = model_kwargs or {}
-    transforms = transforms or get_test_transforms(img_size=img_size)
+    transforms = transforms or get_counter_test_transforms(img_size=img_size)
 
     # --- Load dataset ---
     df = pd.read_csv(csv_path).dropna(subset=["value"])

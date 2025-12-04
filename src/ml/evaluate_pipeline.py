@@ -12,7 +12,7 @@ import pandas as pd
 from torch.utils.data import DataLoader
 
 from src.ml.data.dataset import ColonyDataset
-from src.ml.data.transforms import get_test_transforms
+from src.ml.data.transforms import get_classifier_test_transforms,get_counter_test_transforms
 from src.ml.models.CountabilityClassifier import CountabilityClassifier
 
 # Adjust based on your setup:
@@ -61,7 +61,7 @@ def evaluate_full_pipeline(
     # Dataset for classification ONLY
     ds = ColonyDataset(
         df=df,
-        transform=get_test_transforms(),
+        transform=get_classifier_test_transforms(),
         task="classify"
     )
 
@@ -125,7 +125,7 @@ def evaluate_full_pipeline(
 
                     ds_img = ColonyDataset(
                         df=single_df,
-                        transform=get_test_transforms(),
+                        transform=get_counter_test_transforms(),
                         task="classify"
                     )
 
@@ -187,6 +187,7 @@ def evaluate_full_pipeline(
 
     counter_accuracy = None
     mae = None
+    r2_score = None
     within_10pct = None
 
     if len(valid_df) > 0:
@@ -194,15 +195,26 @@ def evaluate_full_pipeline(
         y_true = valid_df["true_value"].astype(float)
         y_pred = valid_df["predicted_count"].astype(float)
 
-        # MAE
+        # --- MAE ---
         abs_error = (y_pred - y_true).abs()
         mae = abs_error.mean()
 
-        # % of predictions within +-10% of true count
+        # --- 10% margin ---
         pct_err = abs_error / y_true.replace(0, 1)  # avoid division by zero
         within_10pct = (pct_err <= 0.10).mean()
 
-        counter_accuracy = within_10pct
+        counter_accuracy = within_10pct  # you already use this proxy
+
+        # --- R² SCORE ---
+        ss_res = ((y_true - y_pred) ** 2).sum()
+        ss_tot = ((y_true - y_true.mean()) ** 2).sum()
+
+        if ss_tot == 0:
+            # All ground truth values identical → R² undefined
+            r2_score = None
+        else:
+            r2_score = 1 - (ss_res / ss_tot)
+
 
     # -----------------------------------------------
     # Predictions on wells that are TRULY uncountable
@@ -254,10 +266,12 @@ def evaluate_full_pipeline(
     
     print("\n--- COUNTER METRICS ---")
     if counter_accuracy is not None:
-        print(f"MAE (true countable, correctly flagged countable): {mae:.3f}")
+        print(f"MAE (true countable & predicted countable):         {mae:.3f}")
+        print(f"R² score:                                           {r2_score:.3f}" if r2_score is not None else "R² score: Undefined (no variance)")
         print(f"% within 10% of true value:                        {within_10pct*100:.2f}%")
     else:
-        print("No valid 'true countable & predicted countable' samples to evaluate counter model.")
+        print("No valid 'true countable & predicted countable' wells to evaluate counter model.")
+
 
 
     print(f"\nResults saved to: {output_csv}")
