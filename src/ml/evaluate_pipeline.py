@@ -147,6 +147,13 @@ def evaluate_full_pipeline(
                 # Save record
                 results.append(record)
 
+    filename = os.path.basename(csv_path).lower()  # e.g: test_augmented.csv
+
+    if "aug" in filename or "augmented" in filename:
+        output_csv = "pipeline_results_augmented.csv"
+    else:
+        output_csv = "pipeline_results.csv"
+
     # Save results
     df_out = pd.DataFrame(results)
     df_out.to_csv(output_csv, index=False)
