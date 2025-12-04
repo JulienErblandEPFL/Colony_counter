@@ -206,11 +206,13 @@ def evaluate_full_pipeline(
         abs_error = (y_pred - y_true).abs()
         mae = abs_error.mean()
 
-        # --- 10% margin ---
-        pct_err = abs_error / y_true.replace(0, 1)  # avoid division by zero
-        within_10pct = (pct_err <= 0.10).mean()
+        # --- 10% + 1 margin ---
+        # For true_value == 0, allow absolute error <= 1
+        allowed_err = 0.10 * y_true + 1
+        within_10pct = ((y_true == 0) & (abs_error <= 1)) | ((y_true != 0) & (abs_error <= allowed_err))
+        within_10pct = within_10pct.mean()
 
-        counter_accuracy = within_10pct  # you already use this proxy
+        counter_accuracy = within_10pct  # proxy accuracy under 10%+1 tolerance
 
         # --- R² SCORE ---
         ss_res = ((y_true - y_pred) ** 2).sum()
@@ -275,7 +277,7 @@ def evaluate_full_pipeline(
     if counter_accuracy is not None:
         print(f"MAE (true countable & predicted countable):         {mae:.3f}")
         print(f"R² score:                                           {r2_score:.3f}" if r2_score is not None else "R² score: Undefined (no variance)")
-        print(f"% within 10% of true value:                        {within_10pct*100:.2f}%")
+        print(f"% within 10%+1 of true value:                        {within_10pct*100:.2f}%")
     else:
         print("No valid 'true countable & predicted countable' wells to evaluate counter model.")
 

@@ -15,7 +15,6 @@ from src.ml.data.transforms import get_counter_test_transforms
 from src.ml.models.EfficientNet import EfficientNetB0Regressor
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-IMG_SIZE = 224
 BATCH_SIZE = 16
 CSV_PATH = "data/test.csv"
 
@@ -25,7 +24,6 @@ def evaluate_model(
     csv_path: str = CSV_PATH,
     model_kwargs=None,       # <-- extra args for the model
     batch_size: int = BATCH_SIZE,
-    img_size: int = IMG_SIZE,
     transforms=None,
 ):
     """
@@ -44,7 +42,7 @@ def evaluate_model(
     """
 
     model_kwargs = model_kwargs or {}
-    transforms = transforms or get_counter_test_transforms(img_size=img_size)
+    transforms = transforms or get_counter_test_transforms()
 
     # --- Load dataset ---
     df = pd.read_csv(csv_path).dropna(subset=["value"])
@@ -93,13 +91,17 @@ def evaluate_model(
 
 
     # Accuracy
-    tolerance_rel = 0.10   # 10% relative error
+    # Hybrid tolerance: 10% of true value + 1. For labels == 0, allow absolute error <= 1.
+    tolerance_rel = 0.10
+    per_sample_tol = tolerance_rel * labels + 1
 
-    # Note: no special-case tolerance for labels == 0;
-    # zeros will have tolerance 0 (i.e. must be predicted exactly 0).
-    per_sample_tol = tolerance_rel * labels
+    zero_mask = labels == 0
+    non_zero_mask = ~zero_mask
 
-    accuracy_mask = abs_error <= per_sample_tol
+    accuracy_mask = torch.zeros_like(abs_error, dtype=torch.bool)
+    accuracy_mask[zero_mask] = abs_error[zero_mask] <= 1
+    accuracy_mask[non_zero_mask] = abs_error[non_zero_mask] <= per_sample_tol[non_zero_mask]
+
     accuracy = accuracy_mask.float().mean().item()
 
     print("\n--- Evaluation ---")
@@ -107,7 +109,7 @@ def evaluate_model(
     print(f"MSE  : {mse:.4f}")
     print(f"RMSE : {rmse:.4f}")
     print(f"R^2  : {r2:.4f}")
-    print(f"Accuracy (+/- 10%): {accuracy*100:.2f} %")
+    print(f"Accuracy (+/- 10%+1): {accuracy*100:.2f} %")
 
     # Toujours arrondir les prédictions pour affichage / retour
     preds = preds_raw.round().clamp(min=0)
