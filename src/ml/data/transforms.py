@@ -1,5 +1,6 @@
 from typing import Sequence, Optional
 from torchvision import transforms
+from torchvision.transforms import functional as F 
 
 # Default image size
 DEFAULT_IMG_SIZE = 320 # 224 or 256 or 320
@@ -130,32 +131,40 @@ def get_counter_train_transforms(
     tfms = [
         transforms.Resize((img_size, img_size)),
 
+        
+
         # Reveal colony structure in dense plates
-        transforms.RandomAutocontrast(p=0.35),
+        transforms.RandomAutocontrast(p=1),
 
         # Make model invariant to staining and illumination variation
+        #RANDOMLY CHANGE THE THINGS
         transforms.ColorJitter(
-            brightness=0.15,
-            contrast=0.15,
-            saturation=0.08,
+            #brightness=0.15,
+            #contrast=0.15,
+            #saturation=0.08,
         ),
+
+        # Deterministic color adjustments (instead of random ColorJitter)
+        transforms.Lambda(lambda img: F.adjust_brightness(img, 1.05)),
+        transforms.Lambda(lambda img: F.adjust_contrast(img, 1.2)),
+        transforms.Lambda(lambda img: F.adjust_saturation(img, 1.1)),
 
         # Reduce pixel-noise overfitting,
         # enforce colony-scale structure learning
         transforms.RandomApply(
-            [transforms.GaussianBlur(kernel_size=3)],
-            p=0.20
+            [transforms.GaussianBlur(kernel_size=3, sigma=1.0)],
+            p=1
         ),
 
         # Very useful for colony density modeling
-        transforms.RandomResizedCrop(
-            img_size,
-            scale=(0.9, 1.0),
-            ratio=(0.98, 1.02),
-        ),
+        #transforms.RandomResizedCrop(
+        #    img_size,
+        #    scale=(0.9, 1.0),
+        #    ratio=(0.98, 1.02),
+        #),
 
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomVerticalFlip(),
+        #transforms.RandomHorizontalFlip(),
+        #transforms.RandomVerticalFlip(),
         #transforms.RandomRotation(10),
 
         transforms.ToTensor(),
@@ -188,6 +197,18 @@ def get_counter_test_transforms(
     """
     tfms = [
         transforms.Resize((img_size, img_size)),
+
+        transforms.RandomAutocontrast(p=1),
+
+        transforms.Lambda(lambda img: F.adjust_brightness(img, 1.05)),
+        transforms.Lambda(lambda img: F.adjust_contrast(img, 1.2)),
+        transforms.Lambda(lambda img: F.adjust_saturation(img, 1.1)),
+
+        transforms.RandomApply(
+            [transforms.GaussianBlur(kernel_size=3)],
+            p=1
+        ),
+
         transforms.ToTensor(),
     ]
 

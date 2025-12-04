@@ -10,10 +10,10 @@ IMG_PATHS = [ #Fill IMG_PATHS at the top with any wells you want to inspect.
 IMG_SIZE = 224
 NUM_VARIANTS = 3   # how many transformed samples per image
 
-from src.ml.data.transforms import get_counter_test_transforms
+from src.ml.data.transforms import get_counter_train_transforms
 
 def show_transforms():
-    transform = get_counter_test_transforms(img_size=IMG_SIZE)
+    transform = get_counter_train_transforms(img_size=IMG_SIZE)
 
     for img_path in IMG_PATHS:
         img = Image.open(img_path).convert("RGB")
