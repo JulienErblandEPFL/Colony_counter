@@ -85,6 +85,10 @@ def train_model(
     train_losses = []
     val_losses = []
 
+    # --- Best model tracking ---
+    best_val_loss = float("inf")
+    best_model_state = None
+
     start_time = time.perf_counter()
     print(f"{'Epoch':^12} | {'Train Loss':^12} | {'Val Loss':^12} | {'Epoch time':^12}")
     print("-" * 60)
@@ -125,6 +129,13 @@ def train_model(
         train_losses.append(avg_train_loss)
         val_losses.append(avg_val_loss)
 
+        # --- Checkpoint: keep best model by val loss ---
+        if avg_val_loss < best_val_loss:
+            best_val_loss = avg_val_loss
+            best_model_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+            # Optional: immediate on-disk checkpoint of best model
+            #torch.save(best_model_state, save_path + ".best.pth")
+
         epoch_time = time.perf_counter() - epoch_start
         total_time = time.perf_counter() - start_time
 
@@ -142,9 +153,12 @@ def train_model(
     print("-" * 60)
     print(f"Training finished in {total_time:0.1f} seconds.")
 
-    # Save model
+    # --- Restore best model before final save/return ---
+    if best_model_state is not None:
+        model.load_state_dict(best_model_state)
+
     torch.save(model.state_dict(), save_path)
-    print(f"Model saved to {save_path}")
+    print(f"Best model (val loss={best_val_loss:.4f}) saved to {save_path}")
 
     return model, (train_losses, val_losses)
 
