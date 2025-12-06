@@ -131,7 +131,9 @@ def get_counter_train_transforms(
     tfms = [
         transforms.Resize((img_size, img_size)),
 
-        
+        # Convert to grayscale, then back to 3‑channel RGB
+        transforms.Grayscale(num_output_channels=1),
+        transforms.Lambda(lambda img: img.convert("RGB")),
 
         # Reveal colony structure in dense plates
         transforms.RandomAutocontrast(p=1),
@@ -139,15 +141,15 @@ def get_counter_train_transforms(
         # Make model invariant to staining and illumination variation
         #RANDOMLY CHANGE THE THINGS
         transforms.ColorJitter(
-            #brightness=0.15,
-            #contrast=0.15,
-            #saturation=0.08,
+            brightness=0.05,
+            contrast=0.05,
+            saturation=0.05,
         ),
 
         # Deterministic color adjustments (instead of random ColorJitter)
-        transforms.Lambda(lambda img: F.adjust_brightness(img, 1.05)),
-        transforms.Lambda(lambda img: F.adjust_contrast(img, 1.2)),
-        transforms.Lambda(lambda img: F.adjust_saturation(img, 1.1)),
+        transforms.Lambda(lambda img: F.adjust_brightness(img, 1.2)),
+        transforms.Lambda(lambda img: F.adjust_contrast(img, 1.3)),
+        transforms.Lambda(lambda img: F.adjust_saturation(img, 1.3)),
 
         # Reduce pixel-noise overfitting,
         # enforce colony-scale structure learning
@@ -171,6 +173,7 @@ def get_counter_train_transforms(
     ]
 
     # Default normalization: colony-specific stats
+    """
     if mean is None and std is None and not use_imagenet_stats:
         tfms.append(
             transforms.Normalize(mean=COLONY_MEAN, std=COLONY_STD)
@@ -181,7 +184,7 @@ def get_counter_train_transforms(
         )
         if norm is not None:
             tfms.append(norm)
-
+    """
     return transforms.Compose(tfms)
 
 
@@ -198,14 +201,18 @@ def get_counter_test_transforms(
     tfms = [
         transforms.Resize((img_size, img_size)),
 
+        # Convert to grayscale, then back to 3‑channel RGB
+        transforms.Grayscale(num_output_channels=1),
+        transforms.Lambda(lambda img: img.convert("RGB")),
+
         transforms.RandomAutocontrast(p=1),
 
-        transforms.Lambda(lambda img: F.adjust_brightness(img, 1.05)),
-        transforms.Lambda(lambda img: F.adjust_contrast(img, 1.2)),
-        transforms.Lambda(lambda img: F.adjust_saturation(img, 1.1)),
+        transforms.Lambda(lambda img: F.adjust_brightness(img, 1.2)),
+        transforms.Lambda(lambda img: F.adjust_contrast(img, 1.3)),
+        transforms.Lambda(lambda img: F.adjust_saturation(img, 1.3)),
 
         transforms.RandomApply(
-            [transforms.GaussianBlur(kernel_size=3)],
+            [transforms.GaussianBlur(kernel_size=3, sigma=1.0)],
             p=1
         ),
 
@@ -213,6 +220,7 @@ def get_counter_test_transforms(
     ]
 
     # Same logic for normalization
+    """
     if mean is None and std is None and not use_imagenet_stats:
         tfms.append(
             transforms.Normalize(mean=COLONY_MEAN, std=COLONY_STD)
@@ -223,5 +231,5 @@ def get_counter_test_transforms(
         )
         if norm is not None:
             tfms.append(norm)
-
+    """
     return transforms.Compose(tfms)
